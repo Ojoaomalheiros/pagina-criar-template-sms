@@ -493,67 +493,6 @@ export default {
     })
 
     // ============================================
-    // URL QUERY PARAM HELPER
-    // ============================================
-    const getQueryParam = (param) => {
-      try {
-        console.log('[TEMPLATE-BUILDER] ========================================')
-        console.log('[TEMPLATE-BUILDER] getQueryParam chamado para:', param)
-
-        const frontWindow = wwLib.getFrontWindow()
-        console.log('[TEMPLATE-BUILDER] frontWindow.location.search:', frontWindow?.location?.search)
-
-        // Try frontWindow first
-        let urlParams = new URLSearchParams(frontWindow?.location?.search || '')
-        let value = urlParams.get(param)
-        console.log('[TEMPLATE-BUILDER] Valor em frontWindow:', value)
-
-        // If not found, try parent window (WeWeb might be in iframe)
-        if (!value && frontWindow?.parent && frontWindow.parent !== frontWindow) {
-          try {
-            console.log('[TEMPLATE-BUILDER] Tentando parent.location.search:', frontWindow.parent.location.search)
-            urlParams = new URLSearchParams(frontWindow.parent.location.search || '')
-            value = urlParams.get(param)
-            console.log('[TEMPLATE-BUILDER] Valor em parent:', value)
-          } catch (e) {
-            console.log('[TEMPLATE-BUILDER] Não foi possível acessar parent (cross-origin)')
-          }
-        }
-
-        // If still not found, try top window
-        if (!value && frontWindow?.top && frontWindow.top !== frontWindow && frontWindow.top !== frontWindow?.parent) {
-          try {
-            console.log('[TEMPLATE-BUILDER] Tentando top.location.search:', frontWindow.top.location.search)
-            urlParams = new URLSearchParams(frontWindow.top.location.search || '')
-            value = urlParams.get(param)
-            console.log('[TEMPLATE-BUILDER] Valor em top:', value)
-          } catch (e) {
-            console.log('[TEMPLATE-BUILDER] Não foi possível acessar top (cross-origin)')
-          }
-        }
-
-        // Also try window directly (not through wwLib)
-        if (!value) {
-          try {
-            console.log('[TEMPLATE-BUILDER] Tentando window.location.search:', window.location.search)
-            urlParams = new URLSearchParams(window.location.search || '')
-            value = urlParams.get(param)
-            console.log('[TEMPLATE-BUILDER] Valor em window:', value)
-          } catch (e) {
-            console.log('[TEMPLATE-BUILDER] Não foi possível acessar window')
-          }
-        }
-
-        console.log('[TEMPLATE-BUILDER] Valor final encontrado para', param, ':', value)
-        console.log('[TEMPLATE-BUILDER] ========================================')
-        return value
-      } catch (e) {
-        console.error('[TEMPLATE-BUILDER] Erro em getQueryParam:', e)
-        return null
-      }
-    }
-
-    // ============================================
     // INTERNAL VARIABLES (using wwLib)
     // ============================================
     const { value: templateNameInternal, setValue: setTemplateName } = wwLib.wwVariable.useComponentVariable({
@@ -775,8 +714,14 @@ export default {
       }
     }, { immediate: true })
 
-    watch(() => props.content?.templateId, (newVal) => {
-      if (newVal !== undefined) {
+    watch(() => props.content?.templateId, async (newVal, oldVal) => {
+      console.log('[TEMPLATE-BUILDER] Watch templateId mudou:', oldVal, '->', newVal)
+      if (newVal && newVal !== oldVal && newVal !== editingTemplateId.value) {
+        console.log('[TEMPLATE-BUILDER] Carregando template do banco via watch...')
+        editingTemplateId.value = newVal
+        setLoadedTemplateId(newVal)
+        await loadTemplateFromDatabase(newVal)
+      } else if (newVal !== undefined) {
         setLoadedTemplateId(newVal)
       }
     }, { immediate: true })
@@ -1518,23 +1463,22 @@ export default {
       console.log('[TEMPLATE-BUILDER] editingTemplateId atual:', editingTemplateId.value)
 
       if (editingTemplateId.value) {
-        console.log('[TEMPLATE-BUILDER] Já estamos editando o template', editingTemplateId.value, '- ignorando verificação de URL')
+        console.log('[TEMPLATE-BUILDER] Já estamos editando o template', editingTemplateId.value, '- ignorando verificação')
       } else {
-        // Verificar se há ID de template na URL para modo de edição
-        console.log('[TEMPLATE-BUILDER] Verificando ID na URL...')
-        const templateIdFromUrl = getQueryParam('id')
-        console.log('[TEMPLATE-BUILDER] templateIdFromUrl:', templateIdFromUrl)
+        // Verificar props.content.templateId (configurado no editor WeWeb)
+        const templateId = props.content?.templateId
+        console.log('[TEMPLATE-BUILDER] templateId das props:', templateId)
 
-        if (templateIdFromUrl) {
+        if (templateId) {
           console.log('[TEMPLATE-BUILDER] ID encontrado! Chamando loadTemplateFromDatabase...')
-          editingTemplateId.value = templateIdFromUrl // Salvar ID antes de carregar
-          const result = await loadTemplateFromDatabase(templateIdFromUrl)
+          editingTemplateId.value = templateId
+          const result = await loadTemplateFromDatabase(templateId)
           console.log('[TEMPLATE-BUILDER] Resultado do carregamento:', result)
           if (!result) {
             editingTemplateId.value = null // Limpar se falhou
           }
         } else {
-          console.log('[TEMPLATE-BUILDER] Nenhum ID na URL - modo criação')
+          console.log('[TEMPLATE-BUILDER] Nenhum templateId nas props - modo criação')
         }
       }
 
