@@ -623,7 +623,7 @@ export default {
 
     const maxButtons = computed(() => props.content?.maxButtons || 3)
 
-    const availableVariables = computed(() => props.content?.availableVariables || [
+    const availableVariables = computed(() => [
       // Cliente
       { value: '{{nome_cliente}}', label: 'Nome', category: 'Cliente' },
       { value: '{{sobrenome}}', label: 'Sobrenome', category: 'Cliente' },
